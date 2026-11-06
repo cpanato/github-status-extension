@@ -272,3 +272,160 @@ test("toolbar installs the correct colored GitHub PNGs for every health category
     await page.close();
   }
 });
+
+test("manual refresh fetches immediately for fresh cache and on consecutive clicks", async () => {
+  await seed();
+  const before = await worker.evaluate(async () => {
+    const { cache } = await chrome.storage.local.get("cache");
+    const original = Reflect.get(globalThis, "statusFetch");
+    Object.assign(globalThis, {
+      manualFetchCount: 0,
+      statusFetch: (...args: unknown[]) => {
+        Reflect.set(
+          globalThis,
+          "manualFetchCount",
+          Reflect.get(globalThis, "manualFetchCount") + 1,
+        );
+        return original(...args);
+      },
+    });
+    cache.snapshot.fetchedAt = Date.now() - 2000;
+    await chrome.storage.local.set({ cache });
+    return cache.snapshot.fetchedAt as number;
+  });
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  const button = page.getByRole("button", { name: "↻ Refresh", exact: true });
+  await button.click();
+  await expect(page.locator("#refresh-feedback")).toContainText(
+    "Status refreshed at",
+  );
+  await expect(page.locator("#updated")).toContainText(/\d{1,2}:\d{2}:\d{2}/);
+  const first = await worker.evaluate(
+    async () => (await chrome.storage.local.get("cache")).cache,
+  );
+  expect(first.snapshot.fetchedAt).toBeGreaterThan(before);
+  expect(first.nextAttemptAt).toBeGreaterThan(Date.now());
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect(button).toBeEnabled();
+  await expect
+    .poll(() =>
+      worker.evaluate(() => Reflect.get(globalThis, "manualFetchCount")),
+    )
+    .toBe(2);
+  await page.close();
+});
+
+test("a failed manual refresh shows failure and can retry immediately after network recovery", async () => {
+  await seed();
+  await worker.evaluate(() => {
+    Object.assign(globalThis, {
+      statusFetch: async () => {
+        throw new TypeError("offline");
+      },
+    });
+  });
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  const previousTime = await page.locator("#updated").textContent();
+  const button = page.getByRole("button", { name: "↻ Refresh", exact: true });
+  await button.click();
+  await expect(page.locator("#refresh-feedback")).toContainText(
+    "Refresh failed",
+  );
+  await expect(page.locator("#updated")).toHaveText(`${previousTime} · stale`);
+  await expect(button).toBeEnabled();
+  await worker.evaluate((payload) => {
+    Object.assign(globalThis, {
+      statusFetch: async () => Response.json(payload),
+    });
+  }, summary());
+  await button.click();
+  await expect(page.locator("#refresh-feedback")).toContainText(
+    "Status refreshed at",
+  );
+  await expect(page.locator("#notice")).toBeHidden();
+  await page.close();
+});
+
+test("provider Retry-After is explicit and concurrent manual requests share one fetch", async () => {
+  await seed();
+  await worker.evaluate(() => {
+    Object.assign(globalThis, {
+      manualFetchCount: 0,
+      statusFetch: async () => {
+        Reflect.set(
+          globalThis,
+          "manualFetchCount",
+          Reflect.get(globalThis, "manualFetchCount") + 1,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return new Response("{}", {
+          status: 429,
+          headers: { "retry-after": "120" },
+        });
+      },
+    });
+  });
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  const results = await page.evaluate(() =>
+    Promise.all([
+      chrome.runtime.sendMessage({ type: "refresh", manual: true }),
+      chrome.runtime.sendMessage({ type: "refresh", manual: true }),
+    ]),
+  );
+  expect(results.map((result) => result.outcome)).toEqual(["failed", "failed"]);
+  expect(
+    await worker.evaluate(() => Reflect.get(globalThis, "manualFetchCount")),
+  ).toBe(1);
+  await expect(page.locator("#refresh")).toBeDisabled();
+  await expect(page.locator("#refresh")).toContainText("Retry in");
+  await expect(page.locator("#refresh")).toHaveAttribute(
+    "title",
+    /GitHub requested a wait/,
+  );
+  const deferred = await page.evaluate(() =>
+    chrome.runtime.sendMessage({ type: "refresh", manual: true }),
+  );
+  expect(deferred.outcome).toBe("deferred");
+  expect(
+    await worker.evaluate(() => Reflect.get(globalThis, "manualFetchCount")),
+  ).toBe(1);
+  await page.close();
+});
+
+test("manual refresh still fetches when it joins an automatic cache-only check", async () => {
+  await seed();
+  await worker.evaluate(() => {
+    const original = Reflect.get(globalThis, "statusFetch");
+    Object.assign(globalThis, {
+      manualFetchCount: 0,
+      statusFetch: (...args: unknown[]) => {
+        Reflect.set(
+          globalThis,
+          "manualFetchCount",
+          Reflect.get(globalThis, "manualFetchCount") + 1,
+        );
+        return original(...args);
+      },
+    });
+  });
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extensionId}/options.html`);
+  const results = await page.evaluate(() =>
+    Promise.all([
+      chrome.runtime.sendMessage({ type: "refresh" }),
+      chrome.runtime.sendMessage({ type: "refresh", manual: true }),
+    ]),
+  );
+  expect(results.map((result) => result.outcome)).toEqual([
+    "deferred",
+    "updated",
+  ]);
+  expect(
+    await worker.evaluate(() => Reflect.get(globalThis, "manualFetchCount")),
+  ).toBe(1);
+  await page.close();
+});

@@ -1,9 +1,34 @@
-import { labels, stale, type Cache, type Incident } from "../domain.js";
+import {
+  labels,
+  stale,
+  refreshAllowedAt,
+  type Cache,
+  type Incident,
+  type RefreshResult,
+} from "../domain.js";
 import { safeLink } from "../providers/github.js";
-import { readCache, readSettings } from "../storage.js";
+import { emptyCache, readCache, readSettings } from "../storage.js";
 import { applyTheme, element, get, time } from "./shared.js";
 let current: Cache | undefined;
+let refreshing = false;
 const refreshButton = get<HTMLButtonElement>("refresh");
+const refreshFeedback = get("refresh-feedback");
+function renderRefreshControl(cache: Cache) {
+  const wait = Math.max(
+    0,
+    Math.ceil((refreshAllowedAt(cache, true) - Date.now()) / 1000),
+  );
+  refreshButton.disabled = refreshing || wait > 0;
+  refreshButton.textContent = refreshing
+    ? "↻ Checking…"
+    : wait > 0
+      ? `↻ Retry in ${wait}s`
+      : "↻ Refresh";
+  refreshButton.title =
+    wait > 0
+      ? `GitHub requested a wait until ${time(refreshAllowedAt(cache, true), true)}`
+      : "Fetch the latest GitHub Status now";
+}
 function incidents(id: string, values: Incident[], empty: string) {
   const parent = get(id);
   parent.replaceChildren();
@@ -83,39 +108,55 @@ function render(cache: Cache) {
   get("maintenance-section").hidden = !snapshot?.maintenance.length;
   incidents("maintenance", snapshot?.maintenance ?? [], "");
   get("updated").textContent = snapshot
-    ? `Updated ${time(snapshot.fetchedAt)}${isStale ? " · stale" : ""}`
+    ? `Updated ${time(snapshot.fetchedAt, true)}${isStale ? " · stale" : ""}`
     : "No successful checks yet";
   get("updated").title = snapshot
     ? new Date(snapshot.fetchedAt).toLocaleString()
     : "";
-  const wait = Math.max(0, (cache.nextAttemptAt - Date.now()) / 1000);
-  refreshButton.title =
-    wait > 0
-      ? `Next API check in about ${Math.ceil(wait)} seconds`
-      : "Check GitHub Status";
+  renderRefreshControl(cache);
 }
-async function refresh() {
-  refreshButton.disabled = true;
-  refreshButton.textContent = "↻ Checking…";
+async function refresh(manual = false) {
+  if (refreshing) return;
+  refreshing = true;
+  renderRefreshControl(current ?? emptyCache());
+  if (manual) refreshFeedback.textContent = "Checking GitHub Status…";
   try {
-    const result = (await chrome.runtime.sendMessage({ type: "refresh" })) as {
-      cache?: Cache;
+    const result = (await chrome.runtime.sendMessage({
+      type: "refresh",
+      manual,
+    })) as Partial<RefreshResult> & {
       error?: string;
     };
-    if (result.cache) render(result.cache);
-    else throw new Error("unavailable");
+    if (!result.cache) throw new Error("unavailable");
+    render(result.cache);
+    if (manual) {
+      if (result.outcome === "updated" && result.cache.snapshot) {
+        refreshFeedback.textContent = `Status refreshed at ${time(result.cache.snapshot.fetchedAt, true)}.`;
+      } else if (
+        result.outcome === "deferred" ||
+        (result.cache.retryAfterUntil ?? 0) > Date.now()
+      ) {
+        refreshFeedback.textContent = `GitHub requested a wait. Try again at ${time(refreshAllowedAt(result.cache, true), true)}.`;
+      } else {
+        refreshFeedback.textContent =
+          "Refresh failed. The last successful update time is unchanged.";
+      }
+    }
   } catch {
     const notice = get("notice");
     notice.hidden = false;
     notice.textContent =
       "Background check unavailable. Reload the extension and try again.";
+    if (manual)
+      refreshFeedback.textContent =
+        "Could not refresh status. Please try again.";
   } finally {
-    refreshButton.disabled = false;
-    refreshButton.textContent = "↻ Refresh";
+    refreshing = false;
+    renderRefreshControl(current ?? emptyCache());
   }
 }
 refreshButton.addEventListener("click", () => {
-  void refresh();
+  void refresh(true);
 });
 get("settings").addEventListener("click", () => {
   void chrome.runtime.openOptionsPage();
@@ -132,6 +173,9 @@ setInterval(() => {
     if (stale(current) && Date.now() >= current.nextAttemptAt) void refresh();
   }
 }, 15_000);
+setInterval(() => {
+  if (current) renderRefreshControl(current);
+}, 1000);
 void (async () => {
   applyTheme(await readSettings());
   const cache = await readCache();

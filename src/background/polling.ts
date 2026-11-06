@@ -45,6 +45,8 @@ export async function fetchCache(
       lastFailure: now,
       error: failure.kind,
       failures,
+      retryAfterUntil:
+        failure.retryAfter > 0 ? now + failure.retryAfter : undefined,
       nextAttemptAt:
         now +
         retryDelay(failures, settings.intervalMinutes, failure.retryAfter),
