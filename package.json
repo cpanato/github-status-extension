@@ -13,6 +13,7 @@
     "build": "bash scripts/build.sh",
     "test": "tsc -p tsconfig.test.json && node --test .test/tests/*.test.js",
     "test:e2e": "playwright test",
+    "test:release": "bash tests/release.test.sh",
     "package": "npm run build && bash scripts/package.sh"
   },
   "devDependencies": {

@@ -6,7 +6,7 @@ The first version includes the overall status, affected-first service list, acti
 
 ## Build and install
 
-Requires Node.js 26 LTS or newer and npm. The `.nvmrc` file selects Node 26 for local development and CI; run `nvm install && nvm use` if you use nvm. Bash and zip are used for packaging.
+Requires Node.js 26 LTS or newer and npm. The `.nvmrc` file selects Node 26 for local development and CI; run `nvm install && nvm use` if you use nvm. Bash, jq, zip, and shasum are used for packaging.
 
 ```bash
 npm ci --ignore-scripts
@@ -19,7 +19,23 @@ Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**,
 npm run package
 ```
 
-The distributable is `artifacts/github-status-extension-0.1.0.zip`. It contains compiled extension code and assets only. It is not automatically published to the Chrome Web Store.
+The distributable is `artifacts/github-status-extension-0.1.0.zip`, accompanied by a `.zip.sha256` checksum. It contains compiled extension code and assets only. It is not automatically published to the Chrome Web Store.
+
+## Releases and release candidates
+
+Push a tag matching the version in both `package.json` and `public/manifest.json`: `v0.1.0` for a stable release, or `v0.1.0-rc.1` for a release candidate. The Release workflow runs the full CI, stamps `version_name` into the built manifest, and publishes the ZIP and SHA-256 checksum to GitHub Releases. RC tags are marked as prereleases and do not become the latest stable release. Chrome's numeric `version` remains `0.1.0` for this release series.
+
+The workflow can also be run manually with an existing tag. It verifies the tag points at the checked-out source and refuses version mismatches. Only the publishing job has repository write permissions; it downloads the tested artifact and verifies the checksum without checking out or executing project code. Existing release assets are not overwritten automatically.
+
+To test a published RC, download and extract its ZIP, open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked** with the extracted directory. To verify the download, put the ZIP and checksum in the same directory and run `shasum -a 256 -c github-status-extension-0.1.0-rc.1.zip.sha256`.
+
+To prepare an RC locally without publishing:
+
+```bash
+npm run build
+bash scripts/prepare-release.sh v0.1.0-rc.1
+bash scripts/package.sh
+```
 
 ## Validation
 
@@ -27,6 +43,7 @@ The distributable is `artifacts/github-status-extension-0.1.0.zip`. It contains 
 npm run typecheck
 npm run lint
 npm test
+npm run test:release
 npm run build
 npx playwright install chromium
 npm run test:e2e
