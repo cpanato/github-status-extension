@@ -149,6 +149,8 @@ test("poller preserves last successful snapshot and resets error on recovery", a
   });
   assert.equal(recovered.error, undefined);
   assert.equal(recovered.failures, 0);
+  assert.equal(recovered.nextAttemptAt, snapshot.expiresAt);
+  assert.equal(recovered.lastFailure, failed.lastFailure);
 });
 test("settings reject invalid intervals and themes", () => {
   assert.deepEqual(

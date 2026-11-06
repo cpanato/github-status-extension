@@ -30,7 +30,7 @@ export async function fetchCache(
       checkedAt: Date.now(),
       lastFailure: cache.lastFailure,
       failures: 0,
-      nextAttemptAt: Date.now() + settings.intervalMinutes * 60_000,
+      nextAttemptAt: snapshot.expiresAt,
     };
   } catch (error) {
     const failure =
