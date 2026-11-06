@@ -1,4 +1,11 @@
-import { toolbar, stale, github, type Cache } from "../domain.js";
+import {
+  toolbar,
+  stale,
+  github,
+  refreshAllowedAt,
+  type Cache,
+  type RefreshResult,
+} from "../domain.js";
 import {
   providers,
   ProviderError,
@@ -7,7 +14,7 @@ import {
 import { emptyCache, readCache, readSettings } from "../storage.js";
 import { fetchCache } from "./polling.js";
 const alarmName = "github-refresh";
-let inFlight: Promise<Cache> | undefined;
+let inFlight: Promise<RefreshResult> | undefined;
 const authorizedProvider: StatusProvider = {
   id: "github-statuspage",
   async fetchStatus(source, signal, interval) {
@@ -44,20 +51,31 @@ async function schedule(cache: Cache) {
     periodInMinutes: 1,
   });
 }
-function refresh(): Promise<Cache> {
-  if (inFlight) return inFlight;
-  inFlight = (async () => {
+function refresh(manual = false): Promise<RefreshResult> {
+  if (inFlight) {
+    return manual
+      ? inFlight.then((result) => {
+          // A manual click may arrive while an automatic cache check is finishing.
+          // Join a real request, but start one if that check only returned the cache.
+          return result.outcome === "deferred" &&
+            Date.now() >= refreshAllowedAt(result.cache, true)
+            ? refresh(true)
+            : result;
+        })
+      : inFlight;
+  }
+  inFlight = (async (): Promise<RefreshResult> => {
     const [cache, settings] = await Promise.all([readCache(), readSettings()]);
     await updateToolbar(cache);
-    if (Date.now() < cache.nextAttemptAt) {
+    if (Date.now() < refreshAllowedAt(cache, manual)) {
       await schedule(cache);
-      return cache;
+      return { cache, outcome: "deferred" };
     }
     const next = await fetchCache(cache, settings, authorizedProvider);
     await chrome.storage.local.set({ cache: next });
     await updateToolbar(next);
     await schedule(next);
-    return next;
+    return { cache: next, outcome: next.error ? "failed" : "updated" };
   })().finally(() => {
     inFlight = undefined;
   });
@@ -82,8 +100,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, reply) => {
   )
     return false;
   if (message.type === "refresh") {
-    refresh()
-      .then((cache) => reply({ cache }))
+    refresh("manual" in message && message.manual === true)
+      .then((result) => reply(result))
       .catch(() => reply({ error: "storage" }));
     return true;
   }

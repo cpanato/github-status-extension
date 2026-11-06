@@ -17,9 +17,10 @@ export function get<T extends HTMLElement = HTMLElement>(id: string): T {
 export function applyTheme(settings: Settings) {
   document.documentElement.dataset.theme = settings.theme;
 }
-export function time(value: number): string {
+export function time(value: number, seconds = false): string {
   return new Date(value).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
+    ...(seconds ? ({ second: "2-digit" } as const) : {}),
   });
 }

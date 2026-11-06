@@ -56,6 +56,11 @@ export interface Cache {
   error?: ErrorKind;
   failures: number;
   nextAttemptAt: number;
+  retryAfterUntil?: number;
+}
+export interface RefreshResult {
+  cache: Cache;
+  outcome: "updated" | "failed" | "deferred";
 }
 export interface Settings {
   theme: "system" | "light" | "dark";
@@ -94,6 +99,9 @@ export function worst(states: Health[]): Health {
 }
 export function stale(cache: Cache, now = Date.now()): boolean {
   return !cache.snapshot || !!cache.error || cache.snapshot.expiresAt <= now;
+}
+export function refreshAllowedAt(cache: Cache, manual: boolean): number {
+  return manual ? (cache.retryAfterUntil ?? 0) : cache.nextAttemptAt;
 }
 export function toolbar(cache: Cache, now = Date.now()) {
   const state = stale(cache, now) ? "unknown" : cache.snapshot!.overall;

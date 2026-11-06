@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toolbar, stale, settingsFrom, defaults } from "../src/domain.js";
+import {
+  toolbar,
+  stale,
+  settingsFrom,
+  defaults,
+  refreshAllowedAt,
+} from "../src/domain.js";
 import {
   normalize,
   componentState,
@@ -236,4 +242,32 @@ test("permission denial remains explicit in cache and toolbar", async () => {
   });
   assert.equal(result.error, "permission");
   assert.equal(toolbar(result).state, "unknown");
+});
+
+test("manual refresh bypasses the configured interval and network backoff", () => {
+  const cache = { ...emptyCache(), nextAttemptAt: Date.now() + 600_000 };
+  assert.equal(refreshAllowedAt(cache, false), cache.nextAttemptAt);
+  assert.equal(refreshAllowedAt(cache, true), 0);
+  assert.equal(refreshAllowedAt({ ...cache, error: "network" }, true), 0);
+});
+
+test("manual refresh honors only the explicit provider Retry-After", async () => {
+  const before = Date.now();
+  const failed = await fetchCache(emptyCache(), defaults, {
+    id: "github-statuspage",
+    async fetchStatus() {
+      throw new ProviderError("http_error", 30_000);
+    },
+  });
+  assert.ok(failed.retryAfterUntil! >= before + 30_000);
+  assert.equal(refreshAllowedAt(failed, true), failed.retryAfterUntil);
+  assert.ok(failed.nextAttemptAt > failed.retryAfterUntil!);
+  const recovered = await fetchCache(failed, defaults, {
+    id: "github-statuspage",
+    async fetchStatus() {
+      return normalize(summary());
+    },
+  });
+  assert.equal(recovered.retryAfterUntil, undefined);
+  assert.equal(refreshAllowedAt(recovered, true), 0);
 });
