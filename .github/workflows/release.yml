@@ -4,17 +4,11 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing release tag (vX.Y.Z or vX.Y.Z-rc.N)
-        required: true
-        type: string
 
 permissions: {}
 
 concurrency:
-  group: release-${{ inputs.tag || github.ref_name }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -24,7 +18,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci.yml
     with:
-      release-tag: ${{ inputs.tag || github.ref_name }}
+      release-tag: ${{ github.ref_name }}
 
   publish:
     name: Publish GitHub release
@@ -48,7 +42,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]
           release_flags=(--latest=false)
