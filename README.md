@@ -4,7 +4,76 @@ A small, local-first Chrome / Chromium extension for GitHub's published service 
 
 The first version includes the overall status, affected-first service list, active incidents and scheduled maintenance, a GitHub toolbar icon colored by status, background polling, persistent cache, manual refresh, system/light/dark themes, and update interval settings. Only `storage`, `alarms`, and access to `https://www.githubstatus.com/*` are requested.
 
-## Build and install
+## Install a release in Chrome
+
+Download a ready-to-use ZIP from [GitHub Releases](https://github.com/cpanato/github-status-extension/releases). You do not need Node.js, Go, npm, or a copy of the source repository to use a release.
+
+### Choose where to keep the extension
+
+Chrome loads an unpacked extension directly from the folder you select. **Keep that extracted folder in a permanent location while the extension is installed.** The ZIP can be deleted after extraction.
+
+Suggested locations for this project:
+
+| System  | Suggested installation folder            |
+| ------- | ---------------------------------------- |
+| macOS   | `~/Applications/github-status-extension` |
+| Linux   | `~/.local/share/github-status-extension` |
+| Windows | `%LOCALAPPDATA%\GitHubStatusExtension`   |
+
+These are suggestions, not required Chrome locations. You can choose another permanent folder, including a directory on another drive. The destination is selected when you click **Load unpacked**; there is no installation-path setting inside the extension. Use the same folder for later updates. Chrome manages its own profile folders; you do not need to copy files into them.
+
+### Download, extract, and load
+
+1. Open the release you want to test. Under **Assets**, download `github-status-extension-<version>.zip` and, optionally, its matching `.zip.sha256` checksum. The automatically generated **Source code** archives contain the development source, not the ready-to-use extension.
+2. Create your permanent installation folder and extract the ZIP contents into it.
+3. Check that `manifest.json` is directly inside that folder:
+
+   ```text
+   github-status-extension/
+     manifest.json
+     popup.html
+     options.html
+     background/
+     icons/
+     ui/
+     ...
+   ```
+
+4. Open `chrome://extensions` in Chrome and enable **Developer mode**.
+5. Click **Load unpacked** and select the folder containing `manifest.json`.
+6. Open Chrome's extensions menu (the puzzle icon), find **GitHub Status Indicator**, and pin it to the toolbar. Click the GitHub icon to view status; use the gear in the popup for preferences.
+
+On macOS, for example, after downloading the ZIP to Downloads:
+
+```bash
+release_version=0.1.0-rc.3 # Replace with the version you downloaded.
+extension_dir="$HOME/Applications/github-status-extension" # Change to your preferred folder.
+mkdir -p "$extension_dir"
+unzip "$HOME/Downloads/github-status-extension-$release_version.zip" -d "$extension_dir"
+open "$extension_dir"
+```
+
+In Chrome, select that `github-status-extension` folder. In the folder picker, **Command–Shift–G** lets you paste its full path. For the suggested location, enter `~/Applications/github-status-extension`.
+
+For an optional checksum check on macOS, keep the ZIP and its checksum in the same directory and run:
+
+```bash
+cd "$HOME/Downloads"
+release_version=0.1.0-rc.3 # Replace with the version you downloaded.
+shasum -a 256 -c "github-status-extension-$release_version.zip.sha256"
+```
+
+### Update an installed release
+
+1. Download the next release's ZIP and extract its contents into the **same installation folder**, replacing the existing extension files. Keep `manifest.json` at the same location; avoid adding a nested folder named after the new version.
+2. Open `chrome://extensions`, find **GitHub Status Indicator**, and click its **Reload** button (the circular arrow).
+3. Open **Details** to check the displayed version, then open the popup to confirm the update. Use **Reload** for updates rather than removing and re-adding the extension.
+
+Updates are manual while releases are installed this way. If you move or delete the extracted folder, Chrome can no longer load that installation. Choose the permanent location before the first install; keep Downloads and temporary build/worktree directories for downloads and development.
+
+This uses Chrome's documented [Load unpacked and Reload workflow](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked), also used for local builds of extensions such as [Bitwarden](https://contributing.bitwarden.com/getting-started/clients/browser/) and [Stylus](https://github.com/openstyles/stylus/wiki/Install-Stylus-from-GitHub).
+
+## Build from source (development)
 
 Requires Node.js 26 LTS or newer and npm. The `.nvmrc` file selects Node 26 for local development and CI; run `nvm install && nvm use` if you use nvm. Bash, jq, zip, and shasum are used for packaging.
 
@@ -13,7 +82,7 @@ npm ci --ignore-scripts
 npm run build
 ```
 
-Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select this worktree's `dist` directory. Pin **GitHub Status Indicator** to the toolbar. No login or configuration is needed. Open settings using the gear in the popup.
+For development, open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select the generated `dist` directory inside your checkout/worktree. This directory contains `manifest.json`. Rebuild and click **Reload** after code changes. For an installation independent of the checkout, copy the contents of `dist` into your chosen permanent folder and follow the release installation steps above.
 
 ```bash
 npm run package
@@ -29,7 +98,7 @@ The dedicated Release workflow runs only when a version tag is pushed; it has no
 
 The repository enables release immutability. Publication creates a draft, uploads every asset, downloads and verifies the uploaded package, and only then publishes the draft. Published assets and tags are never replaced. If publication fails, the release stays unpublished; fix the issue and cut a new RC instead of overwriting assets. Future cosign signatures must be included before publication.
 
-To test a published RC, download and extract its ZIP, open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked** with the extracted directory. To verify the download, put the ZIP and checksum in the same directory and run `shasum -a 256 -c github-status-extension-0.1.0-rc.1.zip.sha256`.
+To test a published RC, follow [Install a release in Chrome](#install-a-release-in-chrome) above. RC and stable ZIPs use the same installation and update procedure.
 
 To prepare an RC locally without publishing:
 
