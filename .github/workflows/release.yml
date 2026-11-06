@@ -12,17 +12,85 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify:
-    name: Verify release
+  build:
+    name: Verify and build release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
-    uses: ./.github/workflows/ci.yml
-    with:
-      release-tag: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+          cache: npm
+
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Check formatting
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Test release validation and packaging
+        run: npm run test:release
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Prepare release metadata
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash scripts/prepare-release.sh "$RELEASE_TAG"
+
+      - name: Install test browser
+        run: npm exec --no -- playwright install --with-deps chromium
+
+      - name: Run Chromium extension tests
+        run: npm run test:e2e
+
+      - name: Package extension
+        run: bash scripts/package.sh
+
+      - name: Upload verified release assets
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: github-status-extension
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload browser failure diagnostics
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: browser-test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   publish:
     name: Publish GitHub release
-    needs: verify
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

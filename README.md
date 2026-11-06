@@ -23,7 +23,7 @@ The distributable is `artifacts/github-status-extension-0.1.0.zip`, accompanied 
 
 ## Releases and release candidates
 
-Push a tag matching the version in both `package.json` and `public/manifest.json`: `v0.1.0` for a stable release, or `v0.1.0-rc.1` for a release candidate. The Release workflow runs the full CI, stamps `version_name` into the built manifest, and publishes the ZIP and SHA-256 checksum to GitHub Releases. RC tags are marked as prereleases and do not become the latest stable release. Chrome's numeric `version` remains `0.1.0` for this release series.
+Push a tag matching the version in both `package.json` and `public/manifest.json`: `v0.1.0` for a stable release, or `v0.1.0-rc.1` for a release candidate. The dedicated Release workflow runs its own validation, tests, and build without calling CI, stamps `version_name` into the built manifest, and publishes the ZIP and SHA-256 checksum to GitHub Releases. RC tags are marked as prereleases and do not become the latest stable release. Chrome's numeric `version` remains `0.1.0` for this release series.
 
 The dedicated Release workflow runs only when a version tag is pushed; it has no manual trigger. It verifies the tag points at the checked-out source and refuses version mismatches. Only the publishing job has repository write permissions; it downloads the tested artifact and verifies the checksum without checking out or executing project code. Existing release assets are not overwritten automatically.
 
