@@ -6,7 +6,7 @@ The first version includes the overall status, affected-first service list, acti
 
 ## Build and install
 
-Requires Node.js 22 or newer and npm. Bash and zip are used for packaging.
+Requires Node.js 26 LTS or newer and npm. The `.nvmrc` file selects Node 26 for local development and CI; run `nvm install && nvm use` if you use nvm. Bash and zip are used for packaging.
 
 ```bash
 npm ci --ignore-scripts
