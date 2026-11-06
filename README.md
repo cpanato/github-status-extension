@@ -1,0 +1,49 @@
+# GitHub Status Indicator
+
+A small, local-first Chrome / Chromium extension for GitHub's published service health. Manifest V3, no account, no backend, no telemetry.
+
+The first version includes the overall status, affected-first service list, active incidents and scheduled maintenance, a colored toolbar marker with textual badge, background polling, persistent cache, manual refresh, system/light/dark themes, and update interval settings. Only `storage`, `alarms`, and access to `https://www.githubstatus.com/*` are requested.
+
+## Build and install
+
+Requires Node.js 22 or newer and npm. Bash and zip are used for packaging.
+
+```bash
+npm ci --ignore-scripts
+npm run build
+```
+
+Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select this worktree's `dist` directory. Pin **GitHub Status Indicator** to the toolbar. No login or configuration is needed. Open settings using the gear in the popup.
+
+```bash
+npm run package
+```
+
+The distributable is `artifacts/github-status-extension-0.1.0.zip`. It contains compiled extension code and assets only. It is not automatically published to the Chrome Web Store.
+
+## Validation
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+npm audit --audit-level=high
+```
+
+Playwright loads the built extension into a real Chromium profile. Tests replace only the worker's external HTTP transport with deterministic fixtures; extension messaging, storage, alarms, toolbar APIs, and pages are exercised directly. Light/dark screenshots are saved in `test-results`. CI installs Chromium system dependencies too. Run `npm run format` to format source files. Icons can be regenerated using `go run scripts/icons.go`.
+
+## Behavior and limitations
+
+- The default check interval is one minute; settings offer 1, 2, 5, or 10 minutes. Chrome can delay alarms during sleep. Freshness is checked whenever the worker or popup runs.
+- A failed check retains the last successful snapshot, marks it stale, and changes the toolbar to unknown. Expired data is never treated as fresh operational status. Cached service rows are labeled explicitly.
+- Manual refresh respects the next permitted check time. Failed checks use exponential backoff with jitter and honor bounded `Retry-After` values. Requests time out after ten seconds, reject redirects, omit credentials, and cap response size at 1 MiB.
+- The summary API supplies unresolved incidents, not resolved incident history. This MVP does not request extra historical feeds or invent uptime metrics.
+- GitHub is the only configured source in this release. Multiple sources, GitLab, and runtime host permissions are deferred to later milestones. The normalized domain and provider interface are separate from the GitHub schema.
+- Browser-based status is informational and reflects GitHub's published reports. Toolbar updates occur when Chrome wakes the service worker; they cannot update while the browser is suspended.
+
+Architecture: `src/providers` validates and normalizes public data, `src/domain.ts` defines provider-independent models and severity, `src/background` owns polling/cache/toolbar, and `src/ui` renders local pages with safe text nodes. Native TypeScript modules keep the build small without a runtime framework or bundler. Bash orchestrates build and packaging; Go generates PNG assets.
+
+The design is in [docs/design/github-status-extension-design.md](docs/design/github-status-extension-design.md). Reference APIs: [GitHub Status](https://www.githubstatus.com/api), [Chrome alarms](https://developer.chrome.com/docs/extensions/reference/api/alarms).
