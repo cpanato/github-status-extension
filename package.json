@@ -13,10 +13,11 @@
     "build": "bash scripts/build.sh",
     "test": "tsc -p tsconfig.test.json && node --test .test/tests/*.test.js",
     "test:e2e": "playwright test",
+    "test:release": "bash tests/release.test.sh",
     "package": "npm run build && bash scripts/package.sh"
   },
   "devDependencies": {
-    "@playwright/test": "1.56.1",
+    "@playwright/test": "1.65.0",
     "@types/chrome": "0.1.24",
     "@types/node": "24.10.0",
     "prettier": "3.6.2",

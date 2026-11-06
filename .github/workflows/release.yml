@@ -1,0 +1,159 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify and build release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+          cache: npm
+
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Check formatting
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Test release validation and packaging
+        run: npm run test:release
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Prepare release metadata
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash scripts/prepare-release.sh "$RELEASE_TAG"
+
+      - name: Install test browser
+        run: npm exec --no -- playwright install --with-deps chromium
+
+      - name: Run Chromium extension tests
+        run: npm run test:e2e
+
+      - name: Package extension
+        run: bash scripts/package.sh
+
+      - name: Upload verified release assets
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: github-status-extension
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload browser failure diagnostics
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: browser-test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: github-status-extension
+          path: artifacts
+
+      - name: Verify package checksum
+        working-directory: artifacts
+        run: shasum -a 256 -c ./*.sha256
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]
+          release_flags=(--latest=false)
+          if [[ "$RELEASE_TAG" == *-rc.* ]]; then
+            release_flags+=(--prerelease)
+          else
+            release_flags=(--latest)
+          fi
+          cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
+          Download the ZIP and its SHA-256 checksum below. Extract the ZIP to a folder, open chrome://extensions, enable Developer mode, and choose Load unpacked to select that folder.
+
+          This release is for manual installation. It is not published to the Chrome Web Store. GitHub is the only supported provider in this version.
+          NOTES
+          gh release create "$RELEASE_TAG" --draft \
+            --verify-tag --title "$RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --generate-notes "${release_flags[@]}"
+
+      - name: Upload all release assets before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release upload "$RELEASE_TAG" artifacts/*
+
+      - name: Verify uploaded assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release download "$RELEASE_TAG" --pattern '*.zip' --pattern '*.sha256' --dir "$RUNNER_TEMP/release-verification"
+          cd "$RUNNER_TEMP/release-verification"
+          shasum -a 256 -c ./*.sha256
+
+      - name: Publish immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          latest=true
+          if [[ "$RELEASE_TAG" == *-rc.* ]]; then
+            latest=false
+          fi
+          gh release edit "$RELEASE_TAG" --draft=false --latest="$latest"
