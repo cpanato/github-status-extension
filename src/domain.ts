@@ -80,9 +80,9 @@ export const rank: Record<Health, number> = {
 };
 export const colors: Record<Health, string> = {
   operational: "#238636",
-  maintenance: "#8250df",
-  degraded: "#9a6700",
-  partial_outage: "#9a6700",
+  maintenance: "#bf8700",
+  degraded: "#bf8700",
+  partial_outage: "#cf222e",
   major_outage: "#cf222e",
   unknown: "#6e7781",
 };
@@ -97,10 +97,23 @@ export function stale(cache: Cache, now = Date.now()): boolean {
 }
 export function toolbar(cache: Cache, now = Date.now()) {
   const state = stale(cache, now) ? "unknown" : cache.snapshot!.overall;
+  const icon =
+    state === "operational"
+      ? "operational"
+      : state === "unknown"
+        ? "unknown"
+        : state === "major_outage" || state === "partial_outage"
+          ? "outage"
+          : "attention";
   return {
     state,
     color: colors[state],
-    text: state === "operational" ? "✓" : state === "unknown" ? "?" : "!",
+    icon: {
+      16: `/icons/${icon}-16.png`,
+      24: `/icons/${icon}-24.png`,
+      32: `/icons/${icon}-32.png`,
+    },
+    text: state === "operational" ? "" : state === "unknown" ? "?" : "!",
     title: `GitHub: ${labels[state]}${cache.snapshot && stale(cache, now) ? " · last known: " + labels[cache.snapshot.overall] : ""}`,
   };
 }

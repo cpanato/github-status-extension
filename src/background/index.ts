@@ -4,7 +4,7 @@ import {
   ProviderError,
   type StatusProvider,
 } from "../providers/github.js";
-import { readCache, readSettings } from "../storage.js";
+import { emptyCache, readCache, readSettings } from "../storage.js";
 import { fetchCache } from "./polling.js";
 const alarmName = "github-refresh";
 let inFlight: Promise<Cache> | undefined;
@@ -20,19 +20,8 @@ const authorizedProvider: StatusProvider = {
 };
 async function updateToolbar(cache: Cache) {
   const state = toolbar(cache);
-  const canvas = new OffscreenCanvas(32, 32);
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = state.color;
-  ctx.beginPath();
-  ctx.arc(16, 16, 13, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 23px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(state.text, 16, 17);
   await Promise.all([
-    chrome.action.setIcon({ imageData: ctx.getImageData(0, 0, 32, 32) }),
+    chrome.action.setIcon({ path: state.icon }),
     chrome.action.setTitle({ title: state.title }),
     chrome.action.setBadgeText({
       text: state.state === "operational" ? "" : state.text,
@@ -76,10 +65,7 @@ function refresh(): Promise<Cache> {
 }
 function run() {
   void refresh().catch(() => {
-    /* Storage/API failures must not leave a green badge. */ void chrome.action.setBadgeText(
-      { text: "?" },
-    );
-    void chrome.action.setTitle({ title: "GitHub: Status Unavailable" });
+    void updateToolbar(emptyCache()).catch(() => {});
   });
 }
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -124,5 +110,5 @@ void (async () => {
     await chrome.alarms.create(alarmName, { periodInMinutes: 1 });
   run();
 })().catch(() => {
-  void chrome.action.setBadgeText({ text: "?" });
+  void updateToolbar(emptyCache()).catch(() => {});
 });

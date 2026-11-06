@@ -41,6 +41,16 @@ test.beforeAll(async () => {
       { timeout: 15_000 },
     )
     .toBeTruthy();
+  await worker.evaluate(() => {
+    const nativeFetch = globalThis.fetch.bind(globalThis);
+    Object.assign(globalThis, { statusFetch: nativeFetch });
+    globalThis.fetch = (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      return url.startsWith("https://www.githubstatus.com/")
+        ? Reflect.get(globalThis, "statusFetch")(input, init)
+        : nativeFetch(input, init);
+    };
+  });
 });
 test.afterAll(async () => {
   await context?.close();
@@ -49,10 +59,12 @@ test.afterAll(async () => {
 async function seed(state = "operational", indicator = "none") {
   await worker.evaluate(
     async (payload) => {
-      globalThis.fetch = async () =>
-        new Response(JSON.stringify(payload), {
-          headers: { "content-type": "application/json" },
-        });
+      Object.assign(globalThis, {
+        statusFetch: async () =>
+          new Response(JSON.stringify(payload), {
+            headers: { "content-type": "application/json" },
+          }),
+      });
       await chrome.storage.local.set({
         cache: { failures: 0, nextAttemptAt: 0 },
       });
@@ -113,9 +125,11 @@ test("degraded and outage status update the popup and toolbar", async () => {
 test("failed request retains cached rows and marks toolbar unknown", async () => {
   await seed();
   await worker.evaluate(async () => {
-    globalThis.fetch = async () => {
-      throw new TypeError("offline");
-    };
+    Object.assign(globalThis, {
+      statusFetch: async () => {
+        throw new TypeError("offline");
+      },
+    });
     const { cache } = await chrome.storage.local.get("cache");
     cache.nextAttemptAt = 0;
     await chrome.storage.local.set({ cache });
@@ -131,19 +145,21 @@ test("failed request retains cached rows and marks toolbar unknown", async () =>
 });
 test("remote incident text is inert and unsafe links are omitted", async () => {
   await worker.evaluate(async (payload) => {
-    globalThis.fetch = async () =>
-      Response.json({
-        ...payload,
-        incidents: [
-          {
-            id: "x",
-            name: "<img src=x onerror=alert(1)>",
-            status: "investigating",
-            impact: "major",
-            shortlink: "javascript:alert(1)",
-          },
-        ],
-      });
+    Object.assign(globalThis, {
+      statusFetch: async () =>
+        Response.json({
+          ...payload,
+          incidents: [
+            {
+              id: "x",
+              name: "<img src=x onerror=alert(1)>",
+              status: "investigating",
+              impact: "major",
+              shortlink: "javascript:alert(1)",
+            },
+          ],
+        }),
+    });
     await chrome.storage.local.set({
       cache: { failures: 0, nextAttemptAt: 0 },
     });
@@ -187,4 +203,72 @@ test("expired cache is marked unknown even during a deferred refresh", async () 
   await expect(page.locator("#component-count")).toContainText("cached");
   expect(await worker.evaluate(() => chrome.action.getBadgeText({}))).toBe("?");
   await page.close();
+});
+
+test("Chrome Extensions displays the packaged GitHub icon", async () => {
+  const page = await context.newPage();
+  await page.goto("chrome://extensions/");
+  const icon = page
+    .locator(`extensions-item[id="${extensionId}"]`)
+    .locator("img#icon");
+  await expect(icon).toBeVisible();
+  await expect
+    .poll(() =>
+      icon.evaluate(
+        (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
+      ),
+    )
+    .toBe(true);
+  await page.screenshot({ path: "test-results/chrome-extensions-icon.png" });
+  await page.close();
+});
+
+test("toolbar installs the correct colored GitHub PNGs for every health category", async () => {
+  await worker.evaluate(() => {
+    const original = chrome.action.setIcon.bind(chrome.action);
+    chrome.action.setIcon = async (details) => {
+      Object.assign(chrome.action, { lastIcon: details.path });
+      await original(details);
+    };
+  });
+  for (const [state, variant, rgb] of [
+    ["operational", "operational", [35, 134, 54]],
+    ["degraded_performance", "attention", [191, 135, 0]],
+    ["under_maintenance", "attention", [191, 135, 0]],
+    ["partial_outage", "outage", [207, 34, 46]],
+    ["major_outage", "outage", [207, 34, 46]],
+    ["unrecognized", "unknown", [110, 119, 129]],
+  ] as const) {
+    await seed(state);
+    const icon = await worker.evaluate(() =>
+      Reflect.get(chrome.action, "lastIcon"),
+    );
+    expect(icon).toEqual({
+      16: `/icons/${variant}-16.png`,
+      24: `/icons/${variant}-24.png`,
+      32: `/icons/${variant}-32.png`,
+    });
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/options.html`);
+    const image = await page.evaluate(async (name) => {
+      const bitmap = await createImageBitmap(
+        await (await fetch(`icons/${name}-32.png`)).blob(),
+      );
+      const canvas = document.createElement("canvas");
+      canvas.width = 32;
+      canvas.height = 32;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      return {
+        edge: Array.from(ctx.getImageData(0, 0, 1, 1).data),
+        ring: Array.from(ctx.getImageData(16, 3, 1, 1).data),
+        center: Array.from(ctx.getImageData(16, 16, 1, 1).data),
+      };
+    }, variant);
+    expect(image.edge[3]).toBe(0);
+    expect(image.center[3]).toBe(0);
+    expect(image.ring).toEqual([...rgb, 255]);
+    await page.close();
+  }
 });

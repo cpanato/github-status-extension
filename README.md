@@ -2,7 +2,7 @@
 
 A small, local-first Chrome / Chromium extension for GitHub's published service health. Manifest V3, no account, no backend, no telemetry.
 
-The first version includes the overall status, affected-first service list, active incidents and scheduled maintenance, a colored toolbar marker with textual badge, background polling, persistent cache, manual refresh, system/light/dark themes, and update interval settings. Only `storage`, `alarms`, and access to `https://www.githubstatus.com/*` are requested.
+The first version includes the overall status, affected-first service list, active incidents and scheduled maintenance, a GitHub toolbar icon colored by status, background polling, persistent cache, manual refresh, system/light/dark themes, and update interval settings. Only `storage`, `alarms`, and access to `https://www.githubstatus.com/*` are requested.
 
 ## Build and install
 
@@ -58,6 +58,7 @@ Playwright loads the built extension into a real Chromium profile. Tests replace
 
 - The default check interval is one minute; settings offer 1, 2, 5, or 10 minutes. Chrome can delay alarms during sleep. Freshness is checked whenever the worker or popup runs.
 - A failed check retains the last successful snapshot, marks it stale, and changes the toolbar to unknown. Expired data is never treated as fresh operational status. Cached service rows are labeled explicitly.
+- The GitHub toolbar icon is green for operational status, yellow for degraded performance or maintenance, red for partial or major outages, and gray for unknown, stale, or failed checks. Attention/outage badges and tooltip text provide status information beyond color. The Chrome Extensions page uses a neutral GitHub icon. Icon sources and regeneration instructions are in [assets/README.md](assets/README.md).
 - Manual refresh respects the next permitted check time. Failed checks use exponential backoff with jitter and honor bounded `Retry-After` values. Requests time out after ten seconds, reject redirects, omit credentials, and cap response size at 1 MiB.
 - The summary API supplies unresolved incidents, not resolved incident history. This MVP does not request extra historical feeds or invent uptime metrics.
 - GitHub is the only configured source in this release. Multiple sources, GitLab, and runtime host permissions are deferred to later milestones. The normalized domain and provider interface are separate from the GitHub schema.
