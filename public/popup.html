@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GitHub Status</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="ui/popup.js"></script>
+  </head>
+  <body class="popup">
+    <header>
+      <div class="brand" aria-hidden="true">◉</div>
+      <div>
+        <h1>GitHub Status</h1>
+        <p class="eyebrow">LIVE SERVICE HEALTH</p>
+      </div>
+      <a
+        class="icon-button"
+        href="https://www.githubstatus.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open GitHub Status website"
+        >↗</a
+      ><button class="icon-button" id="settings" aria-label="Open settings">
+        ⚙
+      </button>
+    </header>
+    <main>
+      <section id="hero" class="hero unknown" aria-live="polite">
+        <span id="hero-icon" class="hero-icon" aria-hidden="true">◌</span>
+        <div>
+          <p class="eyebrow" id="hero-kicker">GITHUB</p>
+          <h2 id="summary">Checking status…</h2>
+          <p id="hero-detail">Connecting to GitHub Status</p>
+        </div>
+      </section>
+      <p id="notice" class="notice" role="status" hidden></p>
+      <section aria-labelledby="services-heading">
+        <div class="section-heading">
+          <h2 id="services-heading">Services</h2>
+          <span id="component-count" class="count"></span>
+        </div>
+        <ul id="components" class="components"></ul>
+      </section>
+      <section aria-labelledby="incidents-heading">
+        <div class="section-heading">
+          <h2 id="incidents-heading">Active incidents</h2>
+          <span id="incident-count" class="count"></span>
+        </div>
+        <div id="incidents"><p class="empty">Checking for incidents…</p></div>
+      </section>
+      <section
+        id="maintenance-section"
+        aria-labelledby="maintenance-heading"
+        hidden
+      >
+        <div class="section-heading">
+          <h2 id="maintenance-heading">Scheduled maintenance</h2>
+        </div>
+        <div id="maintenance"></div>
+      </section>
+    </main>
+    <footer>
+      <div>
+        <p id="updated">No cached status</p>
+        <a
+          href="https://www.githubstatus.com/api"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Data from GitHub Status</a
+        >
+      </div>
+      <button id="refresh" class="refresh">↻ Refresh</button>
+    </footer>
+  </body>
+</html>

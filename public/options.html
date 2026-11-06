@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Settings · GitHub Status</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="ui/options.js"></script>
+  </head>
+  <body class="options">
+    <header>
+      <div class="brand" aria-hidden="true">◉</div>
+      <div>
+        <h1>GitHub Status</h1>
+        <p class="eyebrow">SETTINGS</p>
+      </div>
+    </header>
+    <main>
+      <section>
+        <h2>Your status, at a glance.</h2>
+        <p class="muted">
+          Public service health from GitHub. No account or setup required.
+        </p>
+        <form id="preferences">
+          <label for="theme">Appearance</label
+          ><select id="theme" name="theme">
+            <option value="system">Use system setting</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option></select
+          ><label for="interval">Check for updates</label
+          ><select id="interval" name="interval">
+            <option value="1">Every minute</option>
+            <option value="2">Every 2 minutes</option>
+            <option value="5">Every 5 minutes</option>
+            <option value="10">Every 10 minutes</option>
+          </select>
+          <p class="muted">
+            Checks may be delayed while your browser or computer is asleep.
+            Failed requests retry with backoff.
+          </p>
+          <button type="submit" class="primary">Save settings</button>
+          <p id="saved" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+      <section>
+        <h2>Source</h2>
+        <div class="source">
+          <strong>GitHub</strong><span class="badge operational">Enabled</span
+          ><a
+            href="https://www.githubstatus.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >githubstatus.com ↗</a
+          >
+        </div>
+        <p class="muted">
+          Published platform status. Additional providers are planned for a
+          later release.
+        </p>
+      </section>
+      <section>
+        <h2>Diagnostics</h2>
+        <dl id="diagnostics"></dl>
+      </section>
+      <section>
+        <h2>Privacy</h2>
+        <p class="muted">
+          Only the public GitHub Status API is contacted. Preferences and the
+          most recent status are stored locally in this browser. No analytics,
+          credentials, or browsing data.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
