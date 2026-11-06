@@ -30,7 +30,7 @@ npm test
 npm run build
 npx playwright install chromium
 npm run test:e2e
-npm audit --audit-level=high
+npm audit --audit-level=moderate
 ```
 
 Playwright loads the built extension into a real Chromium profile. Tests replace only the worker's external HTTP transport with deterministic fixtures; extension messaging, storage, alarms, toolbar APIs, and pages are exercised directly. Light/dark screenshots are saved in `test-results`. CI installs Chromium system dependencies too. Run `npm run format` to format source files. Icons can be regenerated using `go run scripts/icons.go`.
