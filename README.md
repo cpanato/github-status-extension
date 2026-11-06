@@ -25,7 +25,9 @@ The distributable is `artifacts/github-status-extension-0.1.0.zip`, accompanied 
 
 Push a tag matching the version in both `package.json` and `public/manifest.json`: `v0.1.0` for a stable release, or `v0.1.0-rc.1` for a release candidate. The dedicated Release workflow runs its own validation, tests, and build without calling CI, stamps `version_name` into the built manifest, and publishes the ZIP and SHA-256 checksum to GitHub Releases. RC tags are marked as prereleases and do not become the latest stable release. Chrome's numeric `version` remains `0.1.0` for this release series.
 
-The dedicated Release workflow runs only when a version tag is pushed; it has no manual trigger. It verifies the tag points at the checked-out source and refuses version mismatches. Only the publishing job has repository write permissions; it downloads the tested artifact and verifies the checksum without checking out or executing project code. Existing release assets are not overwritten automatically.
+The dedicated Release workflow runs only when a version tag is pushed; it has no manual trigger. It verifies the tag points at the checked-out source and refuses version mismatches. Only the publishing job has repository write permissions; it downloads the tested artifact and verifies the checksum without checking out or executing project code.
+
+The repository enables release immutability. Publication creates a draft, uploads every asset, downloads and verifies the uploaded package, and only then publishes the draft. Published assets and tags are never replaced. If publication fails, the release stays unpublished; fix the issue and cut a new RC instead of overwriting assets. Future cosign signatures must be included before publication.
 
 To test a published RC, download and extract its ZIP, open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked** with the extracted directory. To verify the download, put the ZIP and checksum in the same directory and run `shasum -a 256 -c github-status-extension-0.1.0-rc.1.zip.sha256`.
 
