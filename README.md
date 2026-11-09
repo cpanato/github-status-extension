@@ -92,7 +92,7 @@ The installer pins both the certificate identity `https://github.com/cpanato/git
 
 The tag-triggered Release workflow is independent of CI and has no manual trigger. Its build job is read-only. A separate signing job has only read access and `id-token: write` for keyless cosign signing; only the publishing job has `contents: write`. Publication creates a draft, uploads **all** assets, downloads and verifies signatures/checksums, then publishes the immutable release. Published tags and assets are not replaced.
 
-Each release resolves the latest stable cosign version once and uses that same version for signing and publication verification. CI also tests against the latest stable cosign. The installer Action remains pinned to a reviewed commit SHA.
+CI and releases use the cosign installer Action's default inputs. The Action remains pinned to a reviewed commit SHA.
 
 Keyless signing uses the public Sigstore transparency infrastructure. Certificate identity, commit metadata, and artifact digests become public even while the GitHub repository is private; artifact bytes and GitHub credentials are not published to the log. No signing key is stored in the repository.
 
