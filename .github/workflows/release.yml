@@ -16,6 +16,8 @@ jobs:
     name: Verify and build release
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      cosign-version: ${{ steps.cosign.outputs.version }}
     permissions:
       contents: read
     steps:
@@ -71,6 +73,15 @@ jobs:
       - name: Run Chromium extension tests
         run: npm run test:e2e
 
+      - name: Resolve latest stable cosign for this release
+        id: cosign
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(gh api repos/sigstore/cosign/releases/latest --jq .tag_name)
+          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Package extension
         run: bash scripts/package.sh
 
@@ -107,7 +118,7 @@ jobs:
 
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
         with:
-          cosign-release: v3.1.4
+          cosign-release: ${{ needs.build.outputs.cosign-version }}
 
       - name: Verify and sign all release checksums
         working-directory: artifacts
@@ -127,7 +138,7 @@ jobs:
 
   publish:
     name: Publish GitHub release
-    needs: sign
+    needs: [build, sign]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -141,7 +152,7 @@ jobs:
 
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
         with:
-          cosign-release: v3.1.4
+          cosign-release: ${{ needs.build.outputs.cosign-version }}
 
       - name: Verify signature and package checksums
         working-directory: artifacts
