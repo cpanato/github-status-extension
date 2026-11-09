@@ -118,7 +118,14 @@ header > div:nth-child(2) {
   background: var(--text);
   color: var(--bg);
   border-radius: 10px;
-  font-size: 26px;
+}
+.brand::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  -webkit-mask: url("icons/github.svg") center / contain no-repeat;
+  mask: url("icons/github.svg") center / contain no-repeat;
 }
 .eyebrow {
   color: var(--muted);

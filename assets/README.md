@@ -2,6 +2,8 @@
 
 `mark-github.svg` is the official `mark-github-16` icon from [Primer Octicons](https://github.com/primer/octicons). The exact source revision is recorded in `octicons-commit.txt`. Its MIT license is bundled in `public/licenses/octicons-LICENSE.txt` and included in the extension package.
 
+The build also bundles this SVG as `icons/github.svg` for the popup and settings headers. A CSS mask lets the logo follow the selected light or dark theme.
+
 `mark-github-mask.png` is a 512 × 512 black-on-white rasterization of that SVG. It is a build source, not a runtime asset. The Go generator converts coverage to transparency and produces neutral application icons plus green, yellow, red, and gray toolbar variants. PNGs are committed so building the extension does not require Go or browser-based asset generation.
 
 Regenerate the color variants from the mask with:
