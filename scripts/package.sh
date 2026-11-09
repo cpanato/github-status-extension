@@ -11,3 +11,5 @@ archive="github-status-extension-$package_version.zip"
 rm -f "artifacts/$archive"
 (cd dist && zip -qr "../artifacts/$archive" .)
 (cd artifacts && shasum -a 256 "$archive" > "$archive.sha256")
+cp scripts/install.sh artifacts/install.sh
+(cd artifacts && shasum -a 256 "$archive" "$archive.sha256" install.sh > SHA256SUMS)

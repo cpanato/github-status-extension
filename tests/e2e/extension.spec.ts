@@ -102,9 +102,13 @@ test("fresh popup, real toolbar, alarms and minimal permissions", async () => {
   expect(result.alarm).toBeTruthy();
   expect(result.permissions).toEqual(["storage", "alarms"]);
   expect(result.hosts).toEqual(["https://www.githubstatus.com/*"]);
-  await page.screenshot({ path: "test-results/popup-light.png" });
+  await page
+    .locator("body")
+    .screenshot({ path: "test-results/popup-light.png" });
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.screenshot({ path: "test-results/popup-dark.png" });
+  await page
+    .locator("body")
+    .screenshot({ path: "test-results/popup-dark.png" });
   await page.close();
 });
 test("degraded and outage status update the popup and toolbar", async () => {
@@ -205,7 +209,7 @@ test("expired cache is marked unknown even during a deferred refresh", async () 
   await page.close();
 });
 
-test("Chrome Extensions displays the packaged GitHub icon", async () => {
+test("Chrome Extensions displays the packaged status icon", async () => {
   const page = await context.newPage();
   await page.goto("chrome://extensions/");
   const icon = page
@@ -223,7 +227,7 @@ test("Chrome Extensions displays the packaged GitHub icon", async () => {
   await page.close();
 });
 
-test("toolbar installs the correct colored GitHub PNGs for every health category", async () => {
+test("toolbar installs the correct colored status PNGs for every health category", async () => {
   await worker.evaluate(() => {
     const original = chrome.action.setIcon.bind(chrome.action);
     chrome.action.setIcon = async (details) => {
@@ -267,8 +271,8 @@ test("toolbar installs the correct colored GitHub PNGs for every health category
       };
     }, variant);
     expect(image.edge[3]).toBe(0);
-    expect(image.center[3]).toBe(0);
-    expect(image.ring).toEqual([...rgb, 255]);
+    expect(image.center).toEqual([...rgb, 255]);
+    expect(image.ring[3]).toBe(0);
     await page.close();
   }
 });

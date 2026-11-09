@@ -1,6 +1,6 @@
 {
   "name": "github-status-extension",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -14,6 +14,8 @@
     "test": "tsc -p tsconfig.test.json && node --test .test/tests/*.test.js",
     "test:e2e": "playwright test",
     "test:release": "bash tests/release.test.sh",
+    "test:installer": "bash tests/installer.test.sh",
+    "test:installer:signatures": "bash tests/installer-signatures.test.sh",
     "package": "npm run build && bash scripts/package.sh"
   },
   "devDependencies": {
