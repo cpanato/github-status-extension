@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Flow tests use explicit gh/cosign shims; crypto rejection has a separate test.
+# Flow tests use explicit gh/cosign shims; signature rejection has a separate test.
 set -euo pipefail
 project_dir=$(cd "$(dirname "$0")/.." && pwd)
 test_dir=$(mktemp -d)

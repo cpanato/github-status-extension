@@ -131,7 +131,7 @@ npm run lint
 npm test
 npm run test:release
 npm run test:installer
-npm run test:installer:crypto # Requires real cosign 3.1.4+.
+npm run test:installer:signatures # Requires real cosign 3.1.4+.
 npm run build
 npm exec --no -- playwright install chromium
 npm run test:e2e

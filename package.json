@@ -15,7 +15,7 @@
     "test:e2e": "playwright test",
     "test:release": "bash tests/release.test.sh",
     "test:installer": "bash tests/installer.test.sh",
-    "test:installer:crypto": "bash tests/installer-crypto.test.sh",
+    "test:installer:signatures": "bash tests/installer-signatures.test.sh",
     "package": "npm run build && bash scripts/package.sh"
   },
   "devDependencies": {
