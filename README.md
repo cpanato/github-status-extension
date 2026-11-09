@@ -1,110 +1,123 @@
 # GitHub Status Indicator
 
-A small, local-first Chrome / Chromium extension for GitHub's published service health. Manifest V3, no account, no backend, no telemetry.
+A small, local-first Chrome / Chromium extension for GitHub's published service health. Manifest V3, no account, no backend, no telemetry. This is an independent project, not affiliated with or endorsed by GitHub.
 
-The first version includes the overall status, affected-first service list, active incidents and scheduled maintenance, a GitHub toolbar icon colored by status, background polling, persistent cache, manual refresh, system/light/dark themes, and update interval settings. Only `storage`, `alarms`, and access to `https://www.githubstatus.com/*` are requested.
+The extension displays overall status, affected-first services, incidents and maintenance, with a colored pulse icon, automatic checks, immediate manual refresh, and light/dark themes. Only `storage`, `alarms`, and access to `https://www.githubstatus.com/*` are requested. The pulse mark is original artwork; the GitHub name identifies the monitored platform.
 
-## Install a release in Chrome
+![Popup with the original status pulse mark](docs/images/popup.png)
 
-Download a ready-to-use ZIP from [GitHub Releases](https://github.com/cpanato/github-status-extension/releases). You do not need Node.js, Go, npm, or a copy of the source repository to use a release.
+Example popup rendered in Chromium with test data; this is not a live status report.
 
-### Choose where to keep the extension
+## Install a signed release
 
-Chrome loads an unpacked extension directly from the folder you select. **Keep that extracted folder in a permanent location while the extension is installed.** The ZIP can be deleted after extraction.
+The installer supports **macOS and Linux**. It installs a ready-to-use release; Node.js, Go, and the source repository are not needed. Install GitHub CLI (`gh`), **cosign 3.1.4 or newer**, `jq`, `unzip`, and either `shasum` or `sha256sum` first. The repository is currently private, so authenticate with `gh auth login` using an account that has access. The extension itself never receives your GitHub credentials.
 
-Suggested locations for this project:
+**The installer requires a new signed release.** The existing `v0.1.0` and earlier RCs have no cosign bundle and remain immutable. The installer rejects those releases instead of bypassing signature verification. Version `0.1.1` is prepared for the first signed release; the commands below work after that release is published.
 
-| System  | Suggested installation folder            |
-| ------- | ---------------------------------------- |
-| macOS   | `~/Applications/github-status-extension` |
-| Linux   | `~/.local/share/github-status-extension` |
-| Windows | `%LOCALAPPDATA%\GitHubStatusExtension`   |
+### Verify the installer before running it
 
-These are suggestions, not required Chrome locations. You can choose another permanent folder, including a directory on another drive. The destination is selected when you click **Load unpacked**; there is no installation-path setting inside the extension. Use the same folder for later updates. Chrome manages its own profile folders; you do not need to copy files into them.
+Download the release assets into a new directory, verify the signed checksum list against the exact release workflow identity, then verify every checksum. This authenticates `install.sh` as well as the ZIP before executing downloaded code. Do not pipe an unverified download into a shell.
 
-### Download, extract, and load
-
-1. Open the release you want to test. Under **Assets**, download `github-status-extension-<version>.zip` and, optionally, its matching `.zip.sha256` checksum. The automatically generated **Source code** archives contain the development source, not the ready-to-use extension.
-2. Create your permanent installation folder and extract the ZIP contents into it.
-3. Check that `manifest.json` is directly inside that folder:
-
-   ```text
-   github-status-extension/
-     manifest.json
-     popup.html
-     options.html
-     background/
-     icons/
-     ui/
-     ...
-   ```
-
-4. Open `chrome://extensions` in Chrome and enable **Developer mode**.
-5. Click **Load unpacked** and select the folder containing `manifest.json`.
-6. Open Chrome's extensions menu (the puzzle icon), find **GitHub Status Indicator**, and pin it to the toolbar. Click the GitHub icon to view status; use the gear in the popup for preferences.
-
-On macOS, for example, after downloading the ZIP to Downloads:
+macOS example (on Linux, replace `shasum -a 256 -c` with `sha256sum -c`):
 
 ```bash
-release_version=0.1.0-rc.3 # Replace with the version you downloaded.
-extension_dir="$HOME/Applications/github-status-extension" # Change to your preferred folder.
-mkdir -p "$extension_dir"
-unzip "$HOME/Downloads/github-status-extension-$release_version.zip" -d "$extension_dir"
-open "$extension_dir"
+release_tag=v0.1.1 # Use a published signed tag; an RC tag is also accepted.
+release_dir="$HOME/Downloads/github-status-extension-$release_tag"
+mkdir -p "$release_dir"
+gh release download "$release_tag" --repo cpanato/github-status-extension --dir "$release_dir"
+cosign verify-blob \
+  --certificate-identity "https://github.com/cpanato/github-status-extension/.github/workflows/release.yml@refs/tags/$release_tag" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --bundle "$release_dir/SHA256SUMS.sigstore.json" "$release_dir/SHA256SUMS"
+(cd "$release_dir" && shasum -a 256 -c SHA256SUMS)
 ```
 
-In Chrome, select that `github-status-extension` folder. In the folder picker, **Command–Shift–G** lets you paste its full path. For the suggested location, enter `~/Applications/github-status-extension`.
-
-For an optional checksum check on macOS, keep the ZIP and its checksum in the same directory and run:
+Continue only if both verification commands succeed. Save the verified helper and install from the downloaded assets:
 
 ```bash
-cd "$HOME/Downloads"
-release_version=0.1.0-rc.3 # Replace with the version you downloaded.
-shasum -a 256 -c "github-status-extension-$release_version.zip.sha256"
+mkdir -p "$HOME/.local/bin"
+cp "$release_dir/install.sh" "$HOME/.local/bin/github-status-extension-install"
+bash "$HOME/.local/bin/github-status-extension-install" --version "$release_tag" --from "$release_dir"
 ```
 
-### Update an installed release
+The helper independently verifies the signature and ZIP checksum again before changing installed files. It prints the permanent folder to select in Chrome. Defaults are:
 
-1. Download the next release's ZIP and extract its contents into the **same installation folder**, replacing the existing extension files. Keep `manifest.json` at the same location; avoid adding a nested folder named after the new version.
-2. Open `chrome://extensions`, find **GitHub Status Indicator**, and click its **Reload** button (the circular arrow).
-3. Open **Details** to check the displayed version, then open the popup to confirm the update. Use **Reload** for updates rather than removing and re-adding the extension.
+| System | Default installation folder                                                                    |
+| ------ | ---------------------------------------------------------------------------------------------- |
+| macOS  | `~/Applications/github-status-extension`                                                       |
+| Linux  | `$XDG_DATA_HOME/github-status-extension`, or `~/.local/share/github-status-extension` if unset |
 
-Updates are manual while releases are installed this way. If you move or delete the extracted folder, Chrome can no longer load that installation. Choose the permanent location before the first install; keep Downloads and temporary build/worktree directories for downloads and development.
+For another location, add `--dir "/your/permanent/folder"` to the installer command. Use that same `--dir` on future updates. Installer data and extension files stay out of Chrome's profile directories.
 
-This uses Chrome's documented [Load unpacked and Reload workflow](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked), also used for local builds of extensions such as [Bitwarden](https://contributing.bitwarden.com/getting-started/clients/browser/) and [Stylus](https://github.com/openstyles/stylus/wiki/Install-Stylus-from-GitHub).
+### Load the extension in Chrome once
 
-## Build from source (development)
+1. Open `chrome://extensions` and enable **Developer mode**.
+2. Click **Load unpacked** and select the permanent folder printed by the installer. Its root must contain `manifest.json`.
+3. Pin **GitHub Status Indicator** from Chrome's puzzle-piece extensions menu. Click the pulse icon to view status; use the gear for preferences.
 
-Requires Node.js 26 LTS or newer and npm. The `.nvmrc` file selects Node 26 for local development and CI; run `nvm install && nvm use` if you use nvm. Bash, jq, zip, and shasum are used for packaging.
+In the macOS folder picker, **Command–Shift–G** lets you paste the folder path. Keep this folder in place while the extension is installed. Downloaded ZIPs can be deleted after installation.
+
+### Update
+
+```bash
+bash "$HOME/.local/bin/github-status-extension-install" --update
+```
+
+This selects the latest stable release, verifies its signature and checksum, stages its files, and replaces the existing installation at the **same path**. A previous copy is kept beside it as `<installation-folder>.previous`; a failed file swap restores the old folder. The installer refuses unrelated directories and concurrent updates.
+
+For a specific version or a custom installation folder:
+
+```bash
+bash "$HOME/.local/bin/github-status-extension-install" \
+  --update --version v0.1.1 --dir "$HOME/Applications/github-status-extension"
+```
+
+After the command succeeds, click **Reload** (the circular arrow) on the extension's card in `chrome://extensions`. Use Reload instead of Remove so you update the existing installation. Check **Details** for the version. Updates do not run on a timer, and the helper does not silently upgrade itself; repeat the verified bootstrap to replace the helper when needed.
+
+To return to an older **signed** version, pass its tag through `--version` and then reload. There is no unsigned fallback or `--skip-verify` mode.
+
+## Manual installation without the helper
+
+Windows users and users who prefer manual file handling can still download a runtime ZIP. For signed releases, verify `SHA256SUMS` with cosign and the ZIP's SHA-256 digest before extracting, using the identity shown above. `SHA256SUMS` covers the ZIP, its compatibility `.zip.sha256` file, and `install.sh`; `SHA256SUMS.sigstore.json` authenticates that list. GitHub's automatically generated **Source code** archives are not the installable extension.
+
+Extract the ZIP into a permanent folder (for example `%LOCALAPPDATA%\GitHubStatusExtension` on Windows), select the folder containing `manifest.json` using **Load unpacked**, and pin the extension. For updates, replace the files in that same folder and click **Reload**. Do not move the installation into a version-specific subfolder. Chrome loads these files from the selected folder, so deleting or moving it breaks that installation.
+
+The earlier unsigned `v0.1.0` can still be handled using its original manual instructions and ZIP checksum, but it cannot be authenticated with cosign. The new installer intentionally does not accept it.
+
+See Chrome's [Load unpacked and Reload instructions](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked).
+
+## Release verification and trust
+
+The installer pins both the certificate identity `https://github.com/cpanato/github-status-extension/.github/workflows/release.yml@refs/tags/<tag>` and OIDC issuer `https://token.actions.githubusercontent.com`. A signature from another repository, workflow, tag, issuer, or an arbitrary local key is not accepted. Checksums alone do not authenticate a publisher.
+
+The tag-triggered Release workflow is independent of CI and has no manual trigger. Its build job is read-only. A separate signing job has only read access and `id-token: write` for keyless cosign signing; only the publishing job has `contents: write`. Publication creates a draft, uploads **all** assets, downloads and verifies signatures/checksums, then publishes the immutable release. Published tags and assets are not replaced.
+
+Keyless signing uses the public Sigstore transparency infrastructure. Certificate identity, commit metadata, and artifact digests become public even while the GitHub repository is private; artifact bytes and GitHub credentials are not published to the log. No signing key is stored in the repository.
+
+## Build from source
+
+Requires Node.js 26 LTS or newer and npm. Run `nvm install && nvm use` if using nvm. Bash, jq, zip, and shasum are used for packaging.
 
 ```bash
 npm ci --ignore-scripts
 npm run build
 ```
 
-For development, open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select the generated `dist` directory inside your checkout/worktree. This directory contains `manifest.json`. Rebuild and click **Reload** after code changes. For an installation independent of the checkout, copy the contents of `dist` into your chosen permanent folder and follow the release installation steps above.
+For development, load this checkout/worktree's generated `dist` directory in Chrome. Rebuild and click Reload after code changes. This is a source build, not a signed release; the installer does not accept it.
 
 ```bash
 npm run package
 ```
 
-The distributable is `artifacts/github-status-extension-0.1.0.zip`, accompanied by a `.zip.sha256` checksum. It contains compiled extension code and assets only. It is not automatically published to the Chrome Web Store.
+Packaging writes `artifacts/github-status-extension-0.1.1.zip`, its `.zip.sha256` checksum, `install.sh`, and `SHA256SUMS`. Signing occurs only in the release workflow after verification; the unsigned local build has no Sigstore bundle.
 
-## Releases and release candidates
+Push a tag matching the version in `package.json` and `public/manifest.json`, such as `v0.1.1` or `v0.1.1-rc.1`, after merging the changes and passing checks. RCs are prereleases and do not become the latest stable release. Chrome keeps a numeric version, while `version_name` carries the tag's RC suffix.
 
-Push a tag matching the version in both `package.json` and `public/manifest.json`: `v0.1.0` for a stable release, or `v0.1.0-rc.1` for a release candidate. The dedicated Release workflow runs its own validation, tests, and build without calling CI, stamps `version_name` into the built manifest, and publishes the ZIP and SHA-256 checksum to GitHub Releases. RC tags are marked as prereleases and do not become the latest stable release. Chrome's numeric `version` remains `0.1.0` for this release series.
-
-The dedicated Release workflow runs only when a version tag is pushed; it has no manual trigger. It verifies the tag points at the checked-out source and refuses version mismatches. Only the publishing job has repository write permissions; it downloads the tested artifact and verifies the checksum without checking out or executing project code.
-
-The repository enables release immutability. Publication creates a draft, uploads every asset, downloads and verifies the uploaded package, and only then publishes the draft. Published assets and tags are never replaced. If publication fails, the release stays unpublished; fix the issue and cut a new RC instead of overwriting assets. Future cosign signatures must be included before publication.
-
-To test a published RC, follow [Install a release in Chrome](#install-a-release-in-chrome) above. RC and stable ZIPs use the same installation and update procedure.
-
-To prepare an RC locally without publishing:
+To prepare an unsigned RC package locally:
 
 ```bash
 npm run build
-bash scripts/prepare-release.sh v0.1.0-rc.1
+bash scripts/prepare-release.sh v0.1.1-rc.1
 bash scripts/package.sh
 ```
 
@@ -115,24 +128,27 @@ npm run typecheck
 npm run lint
 npm test
 npm run test:release
+npm run test:installer
+npm run test:installer:crypto # Requires real cosign 3.1.4+.
 npm run build
-npx playwright install chromium
+npm exec --no -- playwright install chromium
 npm run test:e2e
 npm audit --audit-level=moderate
 ```
 
-Playwright loads the built extension into a real Chromium profile. Tests replace only the worker's external HTTP transport with deterministic fixtures; extension messaging, storage, alarms, toolbar APIs, and pages are exercised directly. Light/dark screenshots are saved in `test-results`. CI installs Chromium system dependencies too. Run `npm run format` to format source files. Icons can be regenerated using `go run scripts/icons.go`.
+Installer flow tests use isolated gh/cosign shims to exercise downloads, exact identity/issuer checks, failed verification, ZIP safety, custom folders, backups, and failed-update recovery. The separate cryptographic test uses real cosign and an ephemeral local key to prove that a valid signature without the trusted workflow certificate is rejected, and tampered signed bytes fail verification. Its test-only key verification does not relax production verification. Live GitHub OIDC signing is exercised by the tag release workflow.
+
+Playwright loads the built extension in real Chromium. External status requests use deterministic fixtures; messaging, storage, alarms, icons, and pages remain real. Screenshots are saved in `test-results`. The README preview is a cropped popup screenshot copied from that output. Run `npm run format` to format files; regenerate original icons using `go run scripts/icons.go`.
 
 ## Behavior and limitations
 
-- The default check interval is one minute; settings offer 1, 2, 5, or 10 minutes. Chrome can delay alarms during sleep. Freshness is checked whenever the worker or popup runs.
-- A failed check retains the last successful snapshot, marks it stale, and changes the toolbar to unknown. Expired data is never treated as fresh operational status. Cached service rows are labeled explicitly.
-- The GitHub toolbar icon is green for operational status, yellow for degraded performance or maintenance, red for partial or major outages, and gray for unknown, stale, or failed checks. Attention/outage badges and tooltip text provide status information beyond color. The Chrome Extensions page uses a neutral GitHub icon. Icon sources and regeneration instructions are in [assets/README.md](assets/README.md).
-- Manual refresh requests the latest status immediately, even when cached data is fresh or an automatic retry is scheduled. The configured interval applies only to background checks. The button shows progress and confirms success or failure, and the update time includes seconds. An explicit provider `Retry-After` temporarily disables refresh with a visible countdown. Failed automatic checks use exponential backoff with jitter. Requests time out after ten seconds, reject redirects, omit credentials, and cap response size at 1 MiB.
-- The summary API supplies unresolved incidents, not resolved incident history. This MVP does not request extra historical feeds or invent uptime metrics.
-- GitHub is the only configured source in this release. Multiple sources, GitLab, and runtime host permissions are deferred to later milestones. The normalized domain and provider interface are separate from the GitHub schema.
-- Browser-based status is informational and reflects GitHub's published reports. Toolbar updates occur when Chrome wakes the service worker; they cannot update while the browser is suspended.
+- Automatic checks default to one minute, with 1/2/5/10-minute presets. Chrome can delay alarms during sleep.
+- Failed checks retain cached details and mark them stale. Expired data never produces a fresh healthy toolbar icon.
+- The original pulse icon is green for operational, yellow for degraded/maintenance, red for partial/major outage, and gray for unknown/stale/error. Badges and tooltip text supplement color. See [icon sources](assets/README.md).
+- Manual Refresh fetches immediately regardless of the automatic interval or automatic retry backoff. It confirms progress/success/failure, and timestamps include seconds. An explicit provider Retry-After produces a visible countdown. Requests have a ten-second timeout, a 1 MiB response cap, no credentials, and no redirects.
+- The summary feed provides current incidents and maintenance, not complete history or uptime metrics. GitHub is the only configured provider.
+- Updates require a user-run installer command and Chrome reload. This project is distributed manually, outside the Chrome Web Store.
 
-Architecture: `src/providers` validates and normalizes public data, `src/domain.ts` defines provider-independent models and severity, `src/background` owns polling/cache/toolbar, and `src/ui` renders local pages with safe text nodes. Native TypeScript modules keep the build small without a runtime framework or bundler. Bash orchestrates build and packaging; Go generates PNG assets.
+Architecture: providers normalize data, the domain defines severity and models, the service worker owns polling/cache/toolbar, and UI pages render local content. Native TypeScript modules keep runtime dependencies minimal. Bash handles installation and packaging; Go generates the original PNG assets.
 
-The design is in [docs/design/github-status-extension-design.md](docs/design/github-status-extension-design.md). Reference APIs: [GitHub Status](https://www.githubstatus.com/api), [Chrome alarms](https://developer.chrome.com/docs/extensions/reference/api/alarms).
+See the [technical design](docs/design/github-status-extension-design.md), [GitHub Status API](https://www.githubstatus.com/api), and [Chrome alarms](https://developer.chrome.com/docs/extensions/reference/api/alarms).
