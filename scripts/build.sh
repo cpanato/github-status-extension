@@ -4,3 +4,4 @@ cd "$(dirname "$0")/.."
 rm -rf dist
 ./node_modules/.bin/tsc
 cp -R public/. dist/
+cp assets/mark-github.svg dist/icons/github.svg
